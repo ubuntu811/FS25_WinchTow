@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<modDesc descVersion="100">
+    <author>ubuntu811</author>
+    <version>0.1.0.0</version>
+    <title>
+        <en>Winch Tow</en>
+    </title>
+    <description>
+        <en><![CDATA[
+The winch rope can be attached to the attacher joints of other vehicles, not only to trees and logs: to pull a stuck tractor out, to drag a trailer by its drawbar eye, to move a vehicle a few metres without driving it.
+
+Use the winch as usual: stand at it, start the attach mode, and look at an attacher joint of a vehicle (a tractor's hitch, a trailer's eye). The green ring shows the joint, and the attach key ties the rope to it. The winch's own limits apply (maximum mass, rope length).
+
+The hand winch (hand tools, miscellaneous, in the shop) does it without a winch vehicle: hook onto a joint, walk away, and the vehicle creeps after you at 2 km/h, to move something a few metres. Works with every winch in the game, also the ones of other mods. Single player only. Console command wtProbe lists the attacher joints near where you look.
+]]></en>
+    </description>
+    <iconFilename>icon.dds</iconFilename>
+    <multiplayer supported="false" />
+
+    <extraSourceFiles>
+        <sourceFile filename="scripts/WinchTow.lua" />
+        <sourceFile filename="scripts/WinchHand.lua" />
+    </extraSourceFiles>
+
+    <storeItems>
+        <storeItem xmlFilename="handTools/winch/winch.xml"/>
+    </storeItems>
+    <handToolSpecializations>
+        <specialization name="winchTowHand" filename="scripts/HandToolWinchTow.lua" className="HandToolWinchTow"/>
+    </handToolSpecializations>
+    <handToolTypes>
+        <type name="winchTowHand" parent="base" filename="$dataS/scripts/handTools/HandTool.lua">
+            <specialization name="winchTowHand"/>
+        </type>
+    </handToolTypes>
+
+    <l10n>
+        <text name="action_winchTowHand">
+            <en>Hook onto the joint you look at / let go</en>
+            <de>An den Anbaupunkt haken, den du ansiehst / loslassen</de>
+        </text>
+    </l10n>
+</modDesc>

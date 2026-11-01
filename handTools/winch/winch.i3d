@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+
+<i3D name="winchTowHand" version="1.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://i3d.giants.ch/schema/i3d-1.6.xsd">
+
+  <Scene>
+    <TransformGroup name="winchTowHand" nodeId="1">
+      <TransformGroup name="graphics" nodeId="2"/>
+      <TransformGroup name="handNode" translation="0 -0.009 -0.117" rotation="158.306 87.053001 -41.644001" nodeId="4"/>
+      <TransformGroup name="firstPersonNode" translation="0.214 0.589334 -0.172038" rotation="64.832581 0 0" nodeId="5"/>
+    </TransformGroup>
+  </Scene>
+
+</i3D>
