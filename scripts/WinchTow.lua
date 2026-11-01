@@ -107,6 +107,28 @@ function WinchTow.pick(winch, ox, oy, oz, dx, dy, dz, maxRange, reach)
     return best
 end
 
+-- The attacher joint nearest to a point (horizontally), within radius, of a vehicle that is not attached to another vehicle and is not `except`: { vehicle, node, component, kind, x, y, z, distance }, or nil.
+-- For a puller that backs up to something (a horse in its harness, FS25_HorseDynamics: the game's attach key shows when this finds a joint behind it).
+function WinchTow.nearest(x, z, radius, except)
+    local vehicles = g_currentMission ~= nil and g_currentMission.vehicleSystem ~= nil and g_currentMission.vehicleSystem.vehicles or {}
+    local best, bestDistance = nil, radius
+    for _, vehicle in ipairs(vehicles) do
+        local attached = vehicle.getAttacherVehicle ~= nil and vehicle:getAttacherVehicle() ~= nil
+        if vehicle ~= except and not vehicle.isDeleted and not attached then
+            for _, joint in ipairs(WinchTow.jointsOf(vehicle)) do
+                if joint.component ~= nil and joint.component ~= 0 and entityExists(joint.node) then
+                    local px, py, pz = getWorldTranslation(joint.node)
+                    local d = math.sqrt((px - x) ^ 2 + (pz - z) ^ 2)
+                    if d < bestDistance then
+                        best, bestDistance = { vehicle = vehicle, node = joint.node, component = joint.component, kind = joint.kind, x = px, y = py, z = pz, distance = d }, d
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
 -- Lets go of what this mod put into the winch's targeting (a picked vehicle joint), and lets the tree raycast run again.
 function WinchTow.release(spec, rope)
     local tr = spec.treeRaycast

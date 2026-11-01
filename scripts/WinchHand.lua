@@ -132,6 +132,14 @@ function WinchHand.pick()
     return WinchTow.pick({}, ox, oy, oz, dx, dy, dz, WinchHand.PICK_RANGE_M, nil)
 end
 
+-- The joint nearest to a point (published for other mods: a horse that backs up to a trailer): see WinchTow.nearest.
+function WinchHand.nearest(x, z, radius, except)
+    if WinchTow == nil or WinchTow.nearest == nil then
+        return nil
+    end
+    return WinchTow.nearest(x, z, radius, except)
+end
+
 -- The tool's action: hook onto the joint you look at, or let go. Returns a message.
 function WinchHand.toggle()
     if WinchHand.target ~= nil then
