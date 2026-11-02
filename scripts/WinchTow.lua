@@ -54,7 +54,7 @@ local function jointTypeName(jointType)
             return name
         end
     end
-    return nil
+    return jointType ~= nil and ("type " .. tostring(jointType)) or nil           -- (a type the game's table does not name: the number itself)
 end
 
 -- The attacher joints of a vehicle: { node, component, kind }. The joints a vehicle HAS (where implements go: a tractor's hitch, a winch's own trailer joint) and the ones it CARRIES for being attached
@@ -88,17 +88,88 @@ function WinchTow.jointsOf(vehicle, all)
         if joint.jointTransform ~= nil then
             local skipped = WinchTow.TOW_JOINTS_ONLY and isImplement[i] and towPoints > 0 and not inUse[i]
             if all or not skipped then
-                out[#out + 1] = { node = joint.jointTransform, component = joint.jointComponent or component(joint.jointTransform), kind = "hitch", jointType = jointTypeName(joint.jointType), skipped = skipped or nil }
+                out[#out + 1] = { node = joint.jointTransform, component = joint.jointComponent or component(joint.jointTransform), kind = "hitch", jointType = jointTypeName(joint.jointType), jointTypeId = joint.jointType, skipped = skipped or nil, index = i, inUse = inUse[i] or nil }
             end
         end
     end
     local attachable = vehicle.spec_attachable
-    for _, joint in ipairs(attachable ~= nil and attachable.inputAttacherJoints or {}) do
+    for i, joint in ipairs(attachable ~= nil and attachable.inputAttacherJoints or {}) do
         if joint.node ~= nil then
-            out[#out + 1] = { node = joint.node, component = component(joint.node), kind = "drawbar eye" }
+            out[#out + 1] = { node = joint.node, component = component(joint.node), kind = "drawbar eye", jointType = jointTypeName(joint.jointType), jointTypeId = joint.jointType, index = i }
         end
     end
     return out
+end
+
+-- In words, for a HUD (WAILA shows it when you look at a joint): what the joint is, its type (the game attaches only joints of the same type: a trailer's low eye does not fit a 3 point linkage), how high
+-- it is above the ground, and whether a rope could take it.
+local TYPE_WORDS = { implement = "implement (3 point / linkage)", trailer = "trailer", trailerCar = "car trailer", trailerLow = "low trailer", semitrailer = "semitrailer", telehandler = "telehandler", hookLift = "hook lift", frontloader = "front loader", wheelLoader = "wheel loader", cutter = "cutter", cutterHarvester = "cutter (harvester)" }
+function WinchTow.describe(target, long)
+    if target == nil then
+        return nil
+    end
+    local height = nil
+    if target.node ~= nil and getWorldTranslation ~= nil and g_terrainNode ~= nil and getTerrainHeightAtWorldPos ~= nil then
+        local x, y, z = getWorldTranslation(target.node)
+        height = y - getTerrainHeightAtWorldPos(g_terrainNode, x, 0, z)
+    end
+    local raw = target.jointType or "type unknown"
+    local isEye = target.kind == "drawbar eye"
+    if not long then
+        -- one short row for a small HUD panel (it cuts at the right): the kind and the game's name of the type
+        return string.format("%s: %s", isEye and "Eye" or "Joint", raw)
+    end
+    local words = target.jointType ~= nil and (TYPE_WORDS[target.jointType] or target.jointType) or "type unknown"
+    local lines = {
+        string.format("%s of %s", isEye and "Hitch eye (an input joint)" or "Attacher joint", vehicleName(target.vehicle)),
+        string.format("Type: %s = internal %s (%s)", raw, tostring(target.jointTypeId), words),
+    }
+    if height ~= nil then
+        lines[#lines + 1] = string.format("Height: %.2f m above the ground", height)
+    end
+    if isEye then
+        lines[#lines + 1] = string.format("Fits only joints of type %s: the game attaches nothing else to it", raw)
+    elseif target.skipped then
+        lines[#lines + 1] = "A linkage joint: nothing to hook a rope to, it hangs in the air"
+    end
+    pcall(function()
+        local vehicle = target.vehicle
+        -- the joint among the vehicle's joints, the node's name
+        local spec = isEye and vehicle.spec_attachable or vehicle.spec_attacherJoints
+        local list = spec ~= nil and (isEye and spec.inputAttacherJoints or spec.attacherJoints) or {}
+        local nodeName = getName ~= nil and target.node ~= nil and getName(target.node) or "?"
+        lines[#lines + 1] = string.format("Joint %s of %d (%s), node %s", tostring(target.index or "?"), #list, isEye and "input" or "own", tostring(nodeName))
+        -- the body the joint sits on: a body of its own among several, or the frame (lifting the eye of a frame lifts the vehicle; a tongue has a hinge)
+        local own, index, mine = 0, nil, 0
+        for i, component in ipairs(vehicle.components or {}) do
+            local mass = component.node ~= nil and getMass(component.node) or 0
+            own = own + mass
+            if component.node == target.component then
+                index, mine = i, mass
+            end
+        end
+        if index ~= nil and own > 0 then
+            lines[#lines + 1] = string.format("On body %d of %d: %.0f of %.0f kg of the frames (%s)", index, #vehicle.components, mine * 1000, own * 1000, mine > 0.25 * own and "a frame: lifting it lifts the vehicle" or "a small tongue: it can hinge")
+        end
+        -- what it is hitched to
+        if isEye then
+            local parent = vehicle.getAttacherVehicle ~= nil and vehicle:getAttacherVehicle() or nil
+            lines[#lines + 1] = parent ~= nil and ("Hitched to: " .. vehicleName(parent)) or "Not hitched to anything"
+        else
+            local joined = nil
+            for _, implement in ipairs(spec ~= nil and spec.attachedImplements or {}) do
+                if implement.jointDescIndex == target.index and implement.object ~= nil then
+                    joined = vehicleName(implement.object)
+                end
+            end
+            lines[#lines + 1] = joined ~= nil and ("Carries: " .. joined) or "Nothing hitched to it"
+            local joint = list[target.index]
+            if joint ~= nil and (joint.lowerDistanceToGround ~= nil or joint.upperDistanceToGround ~= nil) then
+                lines[#lines + 1] = string.format("The game's own heights: lowered %s m, raised %s m", joint.lowerDistanceToGround ~= nil and string.format("%.2f", joint.lowerDistanceToGround) or "?", joint.upperDistanceToGround ~= nil and string.format("%.2f", joint.upperDistanceToGround) or "?")
+            end
+        end
+    end)
+    return lines
 end
 
 -- The joint nearest to the ray (ox, oy, oz) + t * (dx, dy, dz), 0 < t < maxRange, within PICK_RADIUS_M, of a vehicle in another group than `winch`.
@@ -123,7 +194,7 @@ function WinchTow.pick(winch, ox, oy, oz, dx, dy, dz, maxRange, reach)
                             inReach = math.sqrt(rx * rx + ry * ry + rz * rz) <= reach.distance
                         end
                         if d < bestDistance and inReach then
-                            best, bestDistance = { vehicle = vehicle, node = joint.node, component = joint.component, kind = joint.kind, x = px, y = py, z = pz }, d
+                            best, bestDistance = { vehicle = vehicle, node = joint.node, component = joint.component, kind = joint.kind, jointType = joint.jointType, jointTypeId = joint.jointTypeId, index = joint.index, inUse = joint.inUse, x = px, y = py, z = pz }, d
                         end
                     end
                 end
@@ -146,7 +217,7 @@ function WinchTow.nearest(x, z, radius, except)
                     local px, py, pz = getWorldTranslation(joint.node)
                     local d = math.sqrt((px - x) ^ 2 + (pz - z) ^ 2)
                     if d < bestDistance then
-                        best, bestDistance = { vehicle = vehicle, node = joint.node, component = joint.component, kind = joint.kind, x = px, y = py, z = pz, distance = d }, d
+                        best, bestDistance = { vehicle = vehicle, node = joint.node, component = joint.component, kind = joint.kind, jointType = joint.jointType, jointTypeId = joint.jointTypeId, index = joint.index, inUse = joint.inUse, x = px, y = py, z = pz, distance = d }, d
                     end
                 end
             end

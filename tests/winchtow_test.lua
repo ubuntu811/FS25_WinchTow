@@ -222,6 +222,44 @@ AttacherJoints = nil
 nodes[10], nodes[20], nodes[21], nodes[30], nodes[31] = nil, nil, nil, nil, nil
 check("nothing in front: it says so", consoles.wtProbe():find("no attacher joint within 15 m", 1, true) ~= nil)
 
+-- the joint in words (WAILA shows it): type, height, what fits
+do
+    getTerrainHeightAtWorldPos = function() return 0 end
+    g_terrainNode = 1
+    nodes[40] = { 0, 0.09, 0 }
+    local eye = WinchTow.describe({ vehicle = trailer, node = 40, kind = "drawbar eye", jointType = "trailerLow" })
+    check("the short row (for a small panel): the kind and the game's name of the type, nothing more", eye == "Eye: trailerLow")
+    local lines = WinchTow.describe({ vehicle = trailer, node = 40, kind = "drawbar eye", jointType = "trailerCar", jointTypeId = 7 }, true)
+    local text = table.concat(lines, "\n")
+    check("the full description of a trailer's eye: the type with its words, the height, and that it fits only that type", text:find("Type: trailerCar = internal 7 (car trailer)", 1, true) ~= nil and text:find("Height: 0.09 m above the ground", 1, true) ~= nil and text:find("Fits only joints of type trailerCar", 1, true) ~= nil)
+    check("a vehicle's own joint: the short row is Joint: and the type", WinchTow.describe({ vehicle = tractor, node = 40, kind = "hitch", jointType = "implement" }) == "Joint: implement")
+    -- the extra lines: the joint among the vehicle's, its node, the body it sits on (frame or tongue), what it is hitched to, the game's own heights
+    local savedGetMass = getMass
+    getName = function(n) return "jointTransform" .. tostring(n) end
+    getMass = function(n) return n == 201 and 0.7 or 0.1 end
+    local own = { components = { { node = 201 }, { node = 202 } }, spec_attacherJoints = { attacherJoints = { {}, { lowerDistanceToGround = 0.3, upperDistanceToGround = 0.9 } }, attachedImplements = { { jointDescIndex = 2, object = { getName = function() return "Plough" end } } } } }
+    local ownText = table.concat(WinchTow.describe({ vehicle = own, node = 40, component = 201, kind = "hitch", jointType = "implement", index = 2, inUse = true }, true), "\n")
+    check("an own joint: its place among the vehicle's joints and its node", ownText:find("Joint 2 of 2 (own), node jointTransform40", 1, true) ~= nil)
+    check("... the body it sits on, and that it is a frame (700 of 800 kg): lifting it lifts the vehicle", ownText:find("On body 1 of 2: 700 of 800 kg of the frames (a frame: lifting it lifts the vehicle)", 1, true) ~= nil)
+    check("... what it carries, and the game's own lowered and raised heights", ownText:find("Carries: Plough", 1, true) ~= nil and ownText:find("lowered 0.30 m, raised 0.90 m", 1, true) ~= nil)
+    local eyeVehicle = { components = { { node = 301 }, { node = 302 } }, spec_attachable = { inputAttacherJoints = { { node = 40 } } }, getAttacherVehicle = function() return { getName = function() return "Kubota" end } end }
+    getMass = function(n) return n == 301 and 0.06 or 0.6 end
+    local eyeText = table.concat(WinchTow.describe({ vehicle = eyeVehicle, node = 40, component = 301, kind = "drawbar eye", jointType = "trailerCar", index = 1 }, true), "\n")
+    check("an eye on a small tongue: said to hinge; and what the vehicle is hitched to", eyeText:find("a small tongue: it can hinge", 1, true) ~= nil and eyeText:find("Joint 1 of 1 (input)", 1, true) ~= nil and eyeText:find("Hitched to: Kubota", 1, true) ~= nil)
+    getName, getMass = nil, savedGetMass
+    check("a joint with no type says so, and nothing in sight says nothing", WinchTow.describe({ vehicle = tractor, node = 40, kind = "hitch" }) == "Joint: type unknown" and WinchTow.describe(nil) == nil)
+    -- the internal type id travels with the joint, and a type the game's table does not name shows as its number
+    local savedAJ = AttacherJoints
+    AttacherJoints = { JOINTTYPE_IMPLEMENT = 1, jointTypeNameToInt = { implement = 1, trailerCar = 7 } }
+    local typed = { components = {}, spec_attachable = { inputAttacherJoints = { { node = 40, jointType = 7 }, { node = 41, jointType = 99 } } } }
+    local listed = WinchTow.jointsOf(typed)
+    check("a joint carries the game's internal type id next to its name", listed[1].jointType == "trailerCar" and listed[1].jointTypeId == 7)
+    check("a type the game's table does not name is shown as its number", listed[2].jointType == "type 99" and listed[2].jointTypeId == 99)
+    AttacherJoints = savedAJ
+    getTerrainHeightAtWorldPos, g_terrainNode = nil, nil
+    nodes[40] = nil
+end
+
 print = realPrint
 print(string.format("winchtow_test: %d/%d passed", passed, passed + failed))
 os.exit(failed == 0 and 0 or 1)

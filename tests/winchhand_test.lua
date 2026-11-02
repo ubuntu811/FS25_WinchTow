@@ -255,6 +255,29 @@ do
     check("ring: tool put away: no ring, and the gate is forgotten", not m.active and WinchHand.gate == nil)
     WinchHand.deleteMarker()
     check("ring: the marker is deleted with the mission", m.deleted and WinchHand.marker == nil and m.made == 1)
+    -- a joint asked about with no tool in the hand (WAILA): the ring is on it while the asking goes on
+    WinchTow.describe = function(target, long) return long and { "joint" } or "Eye: test" end
+    WinchHand.hand, WinchHand.target, WinchHand.gate = nil, nil, nil
+    WinchTow.result = picked
+    g_time = 1000
+    WinchHand.look()
+    WinchHand.update(WinchHand, 200)
+    check("ring: no tool, but somebody asks about the joint in sight (look): the ring is on it", m.active and m.pos ~= nil and m.pos[1] == 5 and m.pos[2] == 0.6)
+    g_time = 1300
+    WinchHand.update(WinchHand, 200)
+    check("ring: it stays while the asking was recent (300 ms ago)", m.active)
+    g_time = 2200
+    WinchHand.update(WinchHand, 200)
+    check("ring: nobody asks any more (more than LOOK_RING_MS): it goes", not m.active)
+    g_time = 3000
+    WinchTow.result = nil
+    WinchHand.lookAt = nil
+    WinchHand.look()
+    WinchHand.update(WinchHand, 200)
+    check("ring: asked about, but no joint in sight: no ring", not m.active)
+    g_time = nil
+    WinchHand.lookTarget, WinchHand.lookAskedAt = nil, nil
+    WinchHand.deleteMarker()
     TargetTreeMarker = nil
     WinchHand.hold(20)
     WinchHand.update(WinchHand, 200)
@@ -370,6 +393,14 @@ do
     vehicle.getTotalMass = function() return 12 end
     getMass = function() return 6 end
     WinchHand.toggle()
+    -- a trailer whose frame IS the eye's body: belted logs add mass to what the game counts for the vehicle, but it is still no tongue
+    vehicle.components = { { node = 100 } }
+    getMass = function(n) return 0.66 end
+    vehicle.getTotalMass = function() return 20 end
+    check("the eye's body is the trailer's only frame: not a tongue, whatever the belted load adds to the vehicle's mass", WinchHand.liftable(picked) == false)
+    vehicle.components = nil
+    getMass = function() return 6 end
+    vehicle.getTotalMass = function() return 12 end
     check("a joint on the main body: pulled the old way (no lift, no carry)", WinchHand.stage == nil)
     WinchHand.toggle()
     -- POLE: the same joint on a stiff 2 m pole: pulled in when further, pushed back when nearer, never lifted

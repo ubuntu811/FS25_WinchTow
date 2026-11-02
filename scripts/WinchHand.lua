@@ -212,6 +212,31 @@ function WinchHand.pick()
     return WinchTow.pick({}, ox, oy, oz, dx, dy, dz, WinchHand.PICK_RANGE_M, nil)
 end
 
+-- The joint you look at, in words (published for other mods: WAILA shows it): nil when none is in sight. The pick is asked at most five times a second, the answer is kept in between.
+-- look() is one short row (the kind and the game's name of the type), lookLines() the full description (a list of lines).
+WinchHand.LOOK_RING_MS = 600          -- the green ring stays on a joint that was asked about (WAILA) this long: it is shown while somebody keeps asking, with no tool in the hand
+function WinchHand.refreshLook()
+    local now = g_time or 0
+    WinchHand.lookAskedAt = now
+    if WinchHand.lookAt == nil or now - WinchHand.lookAt >= 200 or now < WinchHand.lookAt then
+        WinchHand.lookAt = now
+        local target = WinchHand.pick()
+        WinchHand.lookTarget = target
+        WinchHand.lookText = target ~= nil and WinchTow.describe(target) or nil
+        WinchHand.lookList = target ~= nil and WinchTow.describe(target, true) or nil
+    end
+end
+
+function WinchHand.look()
+    WinchHand.refreshLook()
+    return WinchHand.lookText
+end
+
+function WinchHand.lookLines()
+    WinchHand.refreshLook()
+    return WinchHand.lookList
+end
+
 -- The joint nearest to a point (published for other mods: a horse that backs up to a trailer): see WinchTow.nearest.
 function WinchHand.nearest(x, z, radius, except)
     if WinchTow == nil or WinchTow.nearest == nil then
@@ -255,7 +280,17 @@ function WinchHand.liftable(target)
     if target.kind == "hitch" or target.component == nil then
         return false
     end
-    return getMass(target.component) <= WinchHand.LIFT_MAX_SHARE * WinchHand.pullMass(target.vehicle, target.component)
+    -- the share among the vehicle's OWN bodies, not of the mass the game counts (belted logs add to that, which made the whole trailer's frame look like a small tongue and lifted its nose)
+    local own = 0
+    for _, component in ipairs(target.vehicle ~= nil and target.vehicle.components or {}) do
+        if component.node ~= nil then
+            own = own + getMass(component.node)
+        end
+    end
+    if own <= 0 then
+        own = WinchHand.pullMass(target.vehicle, target.component)
+    end
+    return getMass(target.component) <= WinchHand.LIFT_MAX_SHARE * own
 end
 
 -- The vehicle stands: the brake is on, every body of it is held at no horizontal speed and no turn, and the tongue (the joint's body) is driven up at liftV when that is given. Nothing is let to roll
@@ -467,7 +502,11 @@ hideMarker = function()
 end
 
 function WinchHand.updateMarker(dt)
-    if WinchHand.hand == nil or WinchHand.target ~= nil or (WinchHand.gate ~= nil and not WinchHand.gate()) then
+    -- with the tool in the hand the ring is on the joint a click would hook (as before); without it, on the joint somebody asked about a moment ago (WinchHand.look: WAILA shows the joint in words, and this ring
+    -- says which of the several points behind a tractor it means)
+    local toolMode = WinchHand.hand ~= nil and WinchHand.target == nil and (WinchHand.gate == nil or WinchHand.gate())
+    local asked = WinchHand.target == nil and WinchHand.lookTarget ~= nil and WinchHand.lookAskedAt ~= nil and (g_time or 0) - WinchHand.lookAskedAt < WinchHand.LOOK_RING_MS
+    if not toolMode and not asked then
         hideMarker()
         WinchHand.markerMs = WinchHand.MARKER_EVERY_MS
         return
@@ -478,8 +517,11 @@ function WinchHand.updateMarker(dt)
     end
     WinchHand.markerMs = 0
     local marker = ensureMarker()
-    local picked = marker ~= nil and WinchHand.pick() or nil
-    if picked == nil then
+    local picked = nil
+    if marker ~= nil then
+        picked = toolMode and WinchHand.pick() or WinchHand.lookTarget
+    end
+    if picked == nil or picked.node == nil or (entityExists ~= nil and not entityExists(picked.node)) then
         hideMarker()
         return
     end
