@@ -18,6 +18,7 @@
 WinchTow = {}
 
 WinchTow.ENABLED = true
+WinchTow.TOW_JOINTS_ONLY = true     -- a vehicle's OWN joints count only when they are tow points (trailer, low trailer, semitrailer ...): the joint of an IMPLEMENT type (a 3 point linkage, a front linkage) sits in the air between the link arms or in front of the bumper, where there is no hook to tie a rope to. Still counted: an implement joint something is hitched to right now, and all the joints of a vehicle that has no tow point at all
 WinchTow.PICK_RADIUS_M = 0.35       -- a joint counts when it is this close to the view ray
 WinchTow.MIN_RANGE_M = 0.3
 WinchTow.MARKER_RADIUS_M = 0.18     -- the ring round the joint
@@ -47,9 +48,18 @@ local function rootOf(vehicle)
     return vehicle
 end
 
+local function jointTypeName(jointType)
+    for name, value in pairs(AttacherJoints ~= nil and AttacherJoints.jointTypeNameToInt or {}) do
+        if value == jointType then
+            return name
+        end
+    end
+    return nil
+end
+
 -- The attacher joints of a vehicle: { node, component, kind }. The joints a vehicle HAS (where implements go: a tractor's hitch, a winch's own trailer joint) and the ones it CARRIES for being attached
 -- (a trailer's drawbar eye, an implement's lower link points).
-function WinchTow.jointsOf(vehicle)
+function WinchTow.jointsOf(vehicle, all)
     local out = {}
     local function component(node)
         if vehicle.getParentComponent ~= nil then
@@ -61,9 +71,25 @@ function WinchTow.jointsOf(vehicle)
         return nil
     end
     local parent = vehicle.spec_attacherJoints
-    for _, joint in ipairs(parent ~= nil and parent.attacherJoints or {}) do
+    local joints = parent ~= nil and parent.attacherJoints or {}
+    local isImplement = {}
+    local towPoints = 0
+    for i, joint in ipairs(joints) do
+        isImplement[i] = AttacherJoints ~= nil and AttacherJoints.JOINTTYPE_IMPLEMENT ~= nil and joint.jointType == AttacherJoints.JOINTTYPE_IMPLEMENT
+        if joint.jointTransform ~= nil and not isImplement[i] then
+            towPoints = towPoints + 1
+        end
+    end
+    local inUse = {}                                    -- (the joints something is hitched to: its node is where the hitched thing really is)
+    for _, implement in ipairs(parent ~= nil and parent.attachedImplements or {}) do
+        inUse[implement.jointDescIndex or 0] = true
+    end
+    for i, joint in ipairs(joints) do
         if joint.jointTransform ~= nil then
-            out[#out + 1] = { node = joint.jointTransform, component = joint.jointComponent or component(joint.jointTransform), kind = "hitch" }
+            local skipped = WinchTow.TOW_JOINTS_ONLY and isImplement[i] and towPoints > 0 and not inUse[i]
+            if all or not skipped then
+                out[#out + 1] = { node = joint.jointTransform, component = joint.jointComponent or component(joint.jointTransform), kind = "hitch", jointType = jointTypeName(joint.jointType), skipped = skipped or nil }
+            end
         end
     end
     local attachable = vehicle.spec_attachable
@@ -269,7 +295,7 @@ function WinchTow.probe()
     local dx, dy, dz = localDirectionToWorld(camera, 0, 0, -1)
     local lines = {}
     for _, vehicle in ipairs(g_currentMission ~= nil and g_currentMission.vehicleSystem ~= nil and g_currentMission.vehicleSystem.vehicles or {}) do
-        for _, joint in ipairs(WinchTow.jointsOf(vehicle)) do
+        for _, joint in ipairs(WinchTow.jointsOf(vehicle, true)) do
             if entityExists(joint.node) then
                 local px, py, pz = getWorldTranslation(joint.node)
                 local vx, vy, vz = px - ox, py - oy, pz - oz
@@ -277,7 +303,7 @@ function WinchTow.probe()
                 local qx, qy, qz = vx - dx * t, vy - dy * t, vz - dz * t
                 local d = math.sqrt(qx * qx + qy * qy + qz * qz)
                 if t > 0 and t < 15 then
-                    lines[#lines + 1] = { d = d, text = string.format("%s: %s of %s, %.1f m along the view, %.2f m off the ray%s", joint.kind, tostring(joint.node), vehicleName(vehicle), t, d, (joint.component == nil or joint.component == 0) and " (NO component: cannot be picked)" or "") }
+                    lines[#lines + 1] = { d = d, text = string.format("%s%s: %s of %s, %.1f m along the view, %.2f m off the ray%s", joint.kind, joint.jointType ~= nil and (" (" .. joint.jointType .. ")") or "", tostring(joint.node), vehicleName(vehicle), t, d, (joint.skipped and " (a linkage, not a tow point: skipped)" or "") .. ((joint.component == nil or joint.component == 0) and " (NO component: cannot be picked)" or "")) }
                 end
             end
         end

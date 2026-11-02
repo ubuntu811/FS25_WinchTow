@@ -202,7 +202,24 @@ check("wtProbe lists the joints in front of you, nearest to the view ray first, 
 trailer.spec_attachable.inputAttacherJoints[1].node = 31
 nodes[31] = { 4, 1.5, 0.15 }
 check("... and says which joint has no component (cannot be picked)", consoles.wtProbe():find("NO component", 1, true) ~= nil)
-nodes[10], nodes[20], nodes[30], nodes[31] = nil, nil, nil, nil
+-- a linkage joint (implement type) is no tow point: not listed for picking, but the probe says why it is skipped
+AttacherJoints = { JOINTTYPE_IMPLEMENT = 1, JOINTTYPE_TRAILER = 2, jointTypeNameToInt = { implement = 1, trailer = 2 } }
+tractor.spec_attacherJoints = { attacherJoints = { { jointTransform = 20, jointComponent = 200, jointType = 1 }, { jointTransform = 21, jointComponent = 200, jointType = 2 } } }
+nodes[21] = { 3, 0.5, 1.0 }
+local joints, all = WinchTow.jointsOf(tractor), WinchTow.jointsOf(tractor, true)
+check("an implement-type joint (3 point or front linkage, in the air) is not a tow point: only the trailer-type joint is listed", #joints == 1 and joints[1].node == 21 and joints[1].jointType == "trailer")
+check("... the probe lists both and says which one is skipped", #all == 2 and consoles.wtProbe():find("a linkage, not a tow point: skipped", 1, true) ~= nil)
+tractor.spec_attacherJoints.attachedImplements = { { jointDescIndex = 1 } }
+check("... but an implement joint something is hitched to right now is listed again (it is where the hitched thing is)", #WinchTow.jointsOf(tractor) == 2)
+tractor.spec_attacherJoints.attachedImplements = nil
+tractor.spec_attacherJoints.attacherJoints = { { jointTransform = 20, jointComponent = 200, jointType = 1 } }
+check("... and a vehicle with no tow point at all keeps its linkage joints (whatever the winch allows)", #WinchTow.jointsOf(tractor) == 1 and WinchTow.jointsOf(tractor)[1].skipped == nil)
+tractor.spec_attacherJoints.attacherJoints = { { jointTransform = 20, jointComponent = 200, jointType = 1 }, { jointTransform = 21, jointComponent = 200, jointType = 2 } }
+WinchTow.TOW_JOINTS_ONLY = false
+check("... TOW_JOINTS_ONLY = false lists every joint again", #WinchTow.jointsOf(tractor) == 2)
+WinchTow.TOW_JOINTS_ONLY = true
+AttacherJoints = nil
+nodes[10], nodes[20], nodes[21], nodes[30], nodes[31] = nil, nil, nil, nil, nil
 check("nothing in front: it says so", consoles.wtProbe():find("no attacher joint within 15 m", 1, true) ~= nil)
 
 print = realPrint
