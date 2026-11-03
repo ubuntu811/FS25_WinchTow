@@ -256,6 +256,18 @@ do
     check("a joint carries the game's internal type id next to its name", listed[1].jointType == "trailerCar" and listed[1].jointTypeId == 7)
     check("a type the game's table does not name is shown as its number", listed[2].jointType == "type 99" and listed[2].jointTypeId == 99)
     AttacherJoints = savedAJ
+    -- the pick: the horse and the winch rope leave out a linkage joint of a vehicle that has a tow point, somebody who LOOKS at it (WinchHand, WAILA) can still pick it
+    local savedAJ2, savedVehicles = AttacherJoints, g_currentMission.vehicleSystem.vehicles
+    AttacherJoints = { JOINTTYPE_IMPLEMENT = 1, jointTypeNameToInt = { implement = 1, trailer = 2 } }
+    local fastrac = newVehicle("fastrac", nil, { components = { [60] = 600 } })
+    nodes[60], nodes[61] = { 3, 1.6, 0.1 }, { 3, 0.5, 5 }                                -- the front linkage joint in the ray, a tow hitch far off it
+    fastrac.spec_attacherJoints = { attacherJoints = { { jointTransform = 60, jointComponent = 600, jointType = 1 }, { jointTransform = 61, jointComponent = 600, jointType = 2 } } }
+    g_currentMission.vehicleSystem.vehicles = { fastrac }
+    check("the default pick leaves out the linkage joint of a vehicle that has a tow point", WinchTow.pick({}, 0, 1.6, 0, 1, 0, 0, 10, nil) == nil)
+    local looked = WinchTow.pick({}, 0, 1.6, 0, 1, 0, 0, 10, nil, true)
+    check("pick(all) finds it: somebody looking at the joint sees it, with its type and that it was a skipped one", looked ~= nil and looked.node == 60 and looked.jointType == "implement" and looked.skipped == true)
+    AttacherJoints, g_currentMission.vehicleSystem.vehicles = savedAJ2, savedVehicles
+    nodes[60], nodes[61] = nil, nil
     getTerrainHeightAtWorldPos, g_terrainNode = nil, nil
     nodes[40] = nil
 end

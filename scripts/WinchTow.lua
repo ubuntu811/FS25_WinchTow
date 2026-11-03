@@ -130,7 +130,7 @@ function WinchTow.describe(target, long)
     if isEye then
         lines[#lines + 1] = string.format("Fits only joints of type %s: the game attaches nothing else to it", raw)
     elseif target.skipped then
-        lines[#lines + 1] = "A linkage joint: nothing to hook a rope to, it hangs in the air"
+        lines[#lines + 1] = "A linkage joint of a vehicle that also has a tow point: the winch rope and the horse leave it out (the joint may hang in the air); the hand winch takes it"
     end
     pcall(function()
         local vehicle = target.vehicle
@@ -174,13 +174,14 @@ end
 
 -- The joint nearest to the ray (ox, oy, oz) + t * (dx, dy, dz), 0 < t < maxRange, within PICK_RADIUS_M, of a vehicle in another group than `winch`.
 -- reach: optional { x, y, z, distance }: the rope can only reach joints that far from that point (the winch's rope node).
-function WinchTow.pick(winch, ox, oy, oz, dx, dy, dz, maxRange, reach)
+-- all: also the joints that are normally left out (a linkage joint of a vehicle that has a tow point: the winch rope and the horse do not want a point that may hang in the air; somebody who LOOKS at one does, and sees its type)
+function WinchTow.pick(winch, ox, oy, oz, dx, dy, dz, maxRange, reach, all)
     local vehicles = g_currentMission ~= nil and g_currentMission.vehicleSystem ~= nil and g_currentMission.vehicleSystem.vehicles or {}
     local winchRoot = rootOf(winch)
     local best, bestDistance = nil, WinchTow.PICK_RADIUS_M
     for _, vehicle in ipairs(vehicles) do
         if vehicle ~= winch and not vehicle.isDeleted and rootOf(vehicle) ~= winchRoot then
-            for _, joint in ipairs(WinchTow.jointsOf(vehicle)) do
+            for _, joint in ipairs(WinchTow.jointsOf(vehicle, all)) do
                 if joint.component ~= nil and joint.component ~= 0 and entityExists(joint.node) then
                     local px, py, pz = getWorldTranslation(joint.node)
                     local vx, vy, vz = px - ox, py - oy, pz - oz
@@ -194,7 +195,7 @@ function WinchTow.pick(winch, ox, oy, oz, dx, dy, dz, maxRange, reach)
                             inReach = math.sqrt(rx * rx + ry * ry + rz * rz) <= reach.distance
                         end
                         if d < bestDistance and inReach then
-                            best, bestDistance = { vehicle = vehicle, node = joint.node, component = joint.component, kind = joint.kind, jointType = joint.jointType, jointTypeId = joint.jointTypeId, index = joint.index, inUse = joint.inUse, x = px, y = py, z = pz }, d
+                            best, bestDistance = { vehicle = vehicle, node = joint.node, component = joint.component, kind = joint.kind, jointType = joint.jointType, jointTypeId = joint.jointTypeId, index = joint.index, inUse = joint.inUse, skipped = joint.skipped, x = px, y = py, z = pz }, d
                         end
                     end
                 end

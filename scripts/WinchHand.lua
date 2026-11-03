@@ -201,7 +201,9 @@ local function vehicleName(vehicle)
 end
 
 -- The joint in front of the player's view, or nil.
-function WinchHand.pick()
+-- The joint you look at. all (WinchHand's own use, and WAILA's readout): every joint, also a vehicle's linkage joint that the horse's hitch and the winch rope leave out; a plain call is the filtered pick the
+-- horse uses.
+function WinchHand.pick(all)
     local player = g_localPlayer
     if player == nil or not player.isControlled or WinchTow == nil then
         return nil
@@ -209,7 +211,7 @@ function WinchHand.pick()
     local camera = player:getCurrentCameraNode()
     local ox, oy, oz = getWorldTranslation(camera)
     local dx, dy, dz = localDirectionToWorld(camera, 0, 0, -1)
-    return WinchTow.pick({}, ox, oy, oz, dx, dy, dz, WinchHand.PICK_RANGE_M, nil)
+    return WinchTow.pick({}, ox, oy, oz, dx, dy, dz, WinchHand.PICK_RANGE_M, nil, all)
 end
 
 -- The joint you look at, in words (published for other mods: WAILA shows it): nil when none is in sight. The pick is asked at most five times a second, the answer is kept in between.
@@ -220,7 +222,7 @@ function WinchHand.refreshLook()
     WinchHand.lookAskedAt = now
     if WinchHand.lookAt == nil or now - WinchHand.lookAt >= 200 or now < WinchHand.lookAt then
         WinchHand.lookAt = now
-        local target = WinchHand.pick()
+        local target = WinchHand.pick(true)
         WinchHand.lookTarget = target
         WinchHand.lookText = target ~= nil and WinchTow.describe(target) or nil
         WinchHand.lookList = target ~= nil and WinchTow.describe(target, true) or nil
@@ -255,7 +257,7 @@ function WinchHand.toggle()
         setSupportUp(target, false)
         return string.format("winch let go of the %s of %s", target.kind, vehicleName(target.vehicle))
     end
-    local target = WinchHand.pick()
+    local target = WinchHand.pick(true)
     if target == nil then
         return "look at an attacher joint (a drawbar eye, a hitch) within " .. WinchHand.PICK_RANGE_M .. " m"
     end
@@ -519,7 +521,7 @@ function WinchHand.updateMarker(dt)
     local marker = ensureMarker()
     local picked = nil
     if marker ~= nil then
-        picked = toolMode and WinchHand.pick() or WinchHand.lookTarget
+        picked = toolMode and WinchHand.pick(true) or WinchHand.lookTarget
     end
     if picked == nil or picked.node == nil or (entityExists ~= nil and not entityExists(picked.node)) then
         hideMarker()
