@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<handTool type="winchTowHand" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../../shared/xml/schema/handTool.xsd">
+    <storeData>
+        <name>
+            <en>Hand winch</en>
+            <de>Handwinde</de>
+        </name>
+        <functions>
+            <function>Hooks onto the attacher joint of a vehicle you look at; walk away and the vehicle creeps after you at 2 km/h.</function>
+        </functions>
+        <image>store/winch.dds</image>
+        <price>150</price>
+        <lifetime>1000</lifetime>
+        <dailyUpkeep>0</dailyUpkeep>
+        <showInStore>false</showInStore>       <!-- the function is an easter egg of the leash in FS25_HorseDynamics now; the tool stays for the savegames that own one -->
+        <rotation>0</rotation>
+        <brand>NONE</brand>
+        <species>HANDTOOL</species>
+        <category>handtoolsMisc</category>
+        <canBeSold>true</canBeSold>
+    </storeData>
+
+    <!-- no model yet: the tool is an empty wrapper with the hand nodes of the leash (a model comes later) -->
+    <base>
+        <typeDesc>Hand winch</typeDesc>
+        <filename>handTools/winch/winch.i3d</filename>
+        <graphics node="graphics" lockFirstPerson="true"/>
+        <handNode node="handNode"/>
+        <firstPersonNode node="firstPersonNode"/>
+    </base>
+
+    <storable>
+        <holderType type="HANDTOOL" node="graphics"/>
+    </storable>
+
+    <i3dMappings>
+        <i3dMapping id="graphics" node="0>0" />
+        <i3dMapping id="handNode" node="0>1" />
+        <i3dMapping id="firstPersonNode" node="0>2" />
+    </i3dMappings>
+</handTool>
